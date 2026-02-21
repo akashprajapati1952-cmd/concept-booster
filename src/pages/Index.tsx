@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import RoleSelect from "../components/RoleSelect";
 import LoginScreen from "../components/LoginScreen";
 import StudentDashboard from "../components/StudentDashboard";
@@ -6,135 +6,152 @@ import ParentDashboard from "../components/ParentDashboard";
 import AboutModal from "../components/AboutModal";
 import { defaultProgress } from "../types/progress";
 import type { StudentProgress } from "../types/progress";
+import { supabase } from "@/integrations/supabase/client";
 
 type Screen = "roleSelect" | "login" | "studentDashboard" | "parentDashboard";
 
-const STORAGE_KEY = "concept_booster_data";
-
-interface AppData {
-  role: "student" | "parent" | null;
+interface StudentData {
+  id: string;
+  fullName: string;
+  dob: string;
   mobile: string;
-  studentMobile: string;
-  progress: StudentProgress;
 }
 
-const loadData = (): AppData => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return { role: null, mobile: "", studentMobile: "", progress: defaultProgress };
-};
+interface StudentRow {
+  id: string;
+  full_name: string;
+  dob: string;
+  mobile: string;
+  topics_searched: string[] | null;
+  questions_asked: number | null;
+  correct_answers: number | null;
+  wrong_answers: number | null;
+  weak_topics: string[] | null;
+  mastery_level: number | null;
+}
 
-const saveData = (data: AppData) => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch {}
-};
+const rowToProgress = (row: StudentRow): StudentProgress => ({
+  topicsSearched: row.topics_searched || [],
+  questionsAsked: row.questions_asked || 0,
+  correctAnswers: row.correct_answers || 0,
+  wrongAnswers: row.wrong_answers || 0,
+  weakTopics: row.weak_topics || [],
+  masteryLevel: row.mastery_level || 0,
+});
 
 const Index = () => {
   const [screen, setScreen] = useState<Screen>("roleSelect");
   const [role, setRole] = useState<"student" | "parent" | null>(null);
-  const [mobile, setMobile] = useState("");
-  const [studentMobile, setStudentMobile] = useState("");
+  const [studentData, setStudentData] = useState<StudentData | null>(null);
   const [progress, setProgress] = useState<StudentProgress>(defaultProgress);
   const [showAbout, setShowAbout] = useState(false);
-
-  // Load persisted data
-  useEffect(() => {
-    const data = loadData();
-    if (data.mobile && data.role) {
-      setMobile(data.mobile);
-      setRole(data.role);
-      setProgress(data.progress || defaultProgress);
-      setStudentMobile(data.studentMobile || data.mobile);
-      setScreen(data.role === "student" ? "studentDashboard" : "parentDashboard");
-    }
-  }, []);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState("");
 
   const handleRoleSelect = (selectedRole: "student" | "parent") => {
     setRole(selectedRole);
+    setLoginError("");
     setScreen("login");
   };
 
-  const handleLogin = (loginMobile: string) => {
-    setMobile(loginMobile);
+  const handleLogin = async (data: { fullName: string; dob: string; mobile: string }) => {
+    setLoginLoading(true);
+    setLoginError("");
 
-    // Load existing progress for this mobile
-    const existingKey = `progress_${loginMobile}`;
-    let existingProgress = defaultProgress;
     try {
-      const raw = localStorage.getItem(existingKey);
-      if (raw) existingProgress = JSON.parse(raw);
-    } catch {}
-    setProgress(existingProgress);
+      const normalizedName = data.fullName.trim().toLowerCase();
 
-    if (role === "student") {
-      setStudentMobile(loginMobile);
-      const data: AppData = {
-        role: "student",
-        mobile: loginMobile,
-        studentMobile: loginMobile,
-        progress: existingProgress,
-      };
-      saveData(data);
-      setScreen("studentDashboard");
-    } else {
-      // Parent: try to find linked student data
-      // For demo: check if same number was registered as student
-      const studentKey = `progress_${loginMobile}`;
-      let linkedStudentMobile = loginMobile;
-      try {
-        const rawStudent = localStorage.getItem(studentKey);
-        if (rawStudent) {
-          existingProgress = JSON.parse(rawStudent);
-          linkedStudentMobile = loginMobile;
+      // Use type assertion for newly created table not yet in generated types
+      const { data: rows, error: fetchErr } = await (supabase as any)
+        .from("students")
+        .select("*")
+        .eq("mobile", data.mobile)
+        .eq("dob", data.dob)
+        .ilike("full_name", normalizedName);
+
+      if (fetchErr) throw fetchErr;
+
+      const existing: StudentRow | null = rows && rows.length > 0 ? rows[0] : null;
+
+      if (role === "student") {
+        if (existing) {
+          setStudentData({ id: existing.id, fullName: existing.full_name, dob: existing.dob, mobile: existing.mobile });
+          setProgress(rowToProgress(existing));
+          setScreen("studentDashboard");
+        } else {
+          // Register new student
+          const { data: inserted, error: insertErr } = await (supabase as any)
+            .from("students")
+            .insert({ full_name: data.fullName.trim(), dob: data.dob, mobile: data.mobile })
+            .select()
+            .single();
+
+          if (insertErr) throw insertErr;
+
+          setStudentData({ id: inserted.id, fullName: inserted.full_name, dob: inserted.dob, mobile: inserted.mobile });
+          setProgress(defaultProgress);
+          setScreen("studentDashboard");
         }
-      } catch {}
-      setStudentMobile(linkedStudentMobile);
-      setProgress(existingProgress);
-      const data: AppData = {
-        role: "parent",
-        mobile: loginMobile,
-        studentMobile: linkedStudentMobile,
-        progress: existingProgress,
-      };
-      saveData(data);
-      setScreen("parentDashboard");
+      } else {
+        // Parent: must find existing student
+        if (!existing) {
+          setLoginError("No student found with these details. कृपया सही details डालें।");
+          setLoginLoading(false);
+          return;
+        }
+
+        setStudentData({ id: existing.id, fullName: existing.full_name, dob: existing.dob, mobile: existing.mobile });
+        setProgress(rowToProgress(existing));
+        setScreen("parentDashboard");
+      }
+    } catch (err: any) {
+      console.error("Login error:", err);
+      setLoginError("Something went wrong. Please try again.");
+    } finally {
+      setLoginLoading(false);
     }
   };
 
-  const handleUpdateProgress = (update: Partial<StudentProgress>) => {
+  const handleUpdateProgress = async (update: Partial<StudentProgress>) => {
     setProgress((prev) => {
       const updated = { ...prev, ...update };
-      // Compute mastery
       const masteryLevel = Math.min(
         100,
         Math.round((updated.topicsSearched.length * 10 + updated.correctAnswers * 5) / 1.5)
       );
       const final = { ...updated, masteryLevel };
-      // Persist
-      try {
-        localStorage.setItem(`progress_${mobile}`, JSON.stringify(final));
-        const appData = loadData();
-        saveData({ ...appData, progress: final });
-      } catch {}
+
+      if (studentData?.id) {
+        (supabase as any)
+          .from("students")
+          .update({
+            topics_searched: final.topicsSearched,
+            questions_asked: final.questionsAsked,
+            correct_answers: final.correctAnswers,
+            wrong_answers: final.wrongAnswers,
+            weak_topics: final.weakTopics,
+            mastery_level: final.masteryLevel,
+          })
+          .eq("id", studentData.id)
+          .then(({ error }: any) => {
+            if (error) console.error("Failed to save progress:", error);
+          });
+      }
+
       return final;
     });
   };
 
   const handleLogout = () => {
-    localStorage.removeItem(STORAGE_KEY);
     setRole(null);
-    setMobile("");
-    setStudentMobile("");
+    setStudentData(null);
     setProgress(defaultProgress);
+    setLoginError("");
     setScreen("roleSelect");
   };
 
   return (
     <div className="relative min-h-screen">
-      {/* Screens */}
       {screen === "roleSelect" && <RoleSelect onSelectRole={handleRoleSelect} />}
 
       {screen === "login" && role && (
@@ -142,28 +159,29 @@ const Index = () => {
           role={role}
           onLogin={handleLogin}
           onBack={() => setScreen("roleSelect")}
+          loading={loginLoading}
+          error={loginError}
         />
       )}
 
-      {screen === "studentDashboard" && (
+      {screen === "studentDashboard" && studentData && (
         <StudentDashboard
-          mobile={mobile}
+          mobile={studentData.mobile}
           progress={progress}
           onUpdateProgress={handleUpdateProgress}
           onLogout={handleLogout}
         />
       )}
 
-      {screen === "parentDashboard" && (
+      {screen === "parentDashboard" && studentData && (
         <ParentDashboard
-          mobile={mobile}
+          mobile={studentData.mobile}
           studentProgress={progress}
-          studentMobile={studentMobile}
+          studentMobile={studentData.mobile}
           onLogout={handleLogout}
         />
       )}
 
-      {/* About Us Button – fixed bottom-left */}
       {(screen === "studentDashboard" || screen === "parentDashboard" || screen === "roleSelect") && (
         <button
           onClick={() => setShowAbout(true)}
@@ -174,7 +192,6 @@ const Index = () => {
         </button>
       )}
 
-      {/* About Modal */}
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
     </div>
   );
