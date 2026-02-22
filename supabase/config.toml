@@ -1,1 +1,4 @@
 project_id = "yaiwjzgixbeehdnzacko"
+
+[functions.ask-doubt]
+verify_jwt = false

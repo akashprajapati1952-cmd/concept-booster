@@ -1,5 +1,7 @@
 import React, { useState, useRef } from "react";
 import { Send, ImagePlus, Loader2, ChevronDown, Lightbulb, RotateCcw } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import type { Language } from "./LanguageSelector";
 import type { StudentProgress } from "../types/progress";
 
@@ -15,124 +17,6 @@ interface AIResponse {
   example: string;
   tip: string;
 }
-
-const getAIResponse = (question: string, language: Language): AIResponse => {
-  const q = question.toLowerCase();
-
-  const responses: Record<string, Record<Language, AIResponse>> = {
-    fraction: {
-      hindi: {
-        explanation:
-          "भिन्न (Fraction) एक संख्या है जो पूरे का एक हिस्सा दर्शाती है। जैसे अगर हम एक सेब को 4 टुकड़ों में काटें और 1 टुकड़ा लें, तो वह 1/4 भिन्न है।",
-        steps: [
-          "ऊपर की संख्या को अंश (Numerator) कहते हैं",
-          "नीचे की संख्या को हर (Denominator) कहते हैं",
-          "अंश ÷ हर = दशमलव संख्या",
-          "जोड़ने के लिए हर को बराबर करें",
-        ],
-        example: "🍕 Pizza: 8 टुकड़े हैं, तुमने 3 खाए → तुम्हारा हिस्सा = 3/8",
-        tip: "💡 याद रखो: हर कभी 0 नहीं हो सकता!",
-      },
-      hinglish: {
-        explanation:
-          "Fraction ek number hai jo ek cheez ka part batata hai. Jaise agar ek pizza ke 4 pieces hain aur tumne 1 khaya, toh tumhara fraction = 1/4 hai!",
-        steps: [
-          "Upar wala number = Numerator (kitna liya)",
-          "Neeche wala number = Denominator (total kitne parts)",
-          "Jab hum add karte hain → pehle denominator same karo",
-          "Multiply karne mein seedha numerator × numerator",
-        ],
-        example: "🍎 Ek apple ke 2 pieces karo, ek piece lo → 1/2 fraction hai!",
-        tip: "💡 Trick: Denominator kabhi zero nahi hoga!",
-      },
-      english: {
-        explanation:
-          "A fraction shows a part of a whole thing. The top number is how many parts you have. The bottom number is how many total parts there are.",
-        steps: [
-          "Top number = Numerator (your parts)",
-          "Bottom number = Denominator (total parts)",
-          "To add: make denominators the same first",
-          "To multiply: multiply top × top, bottom × bottom",
-        ],
-        example: "🍕 Pizza cut into 8 slices, you eat 3 = 3/8 of pizza eaten!",
-        tip: "💡 Remember: Denominator can never be zero!",
-      },
-    },
-    photosynthesis: {
-      hindi: {
-        explanation:
-          "प्रकाश संश्लेषण (Photosynthesis) वह प्रक्रिया है जिसमें पौधे सूर्य के प्रकाश का उपयोग करके खाना बनाते हैं। पत्तियों में हरा पदार्थ (Chlorophyll) होता है जो यह काम करता है।",
-        steps: [
-          "पौधा पत्तियों से सूर्य का प्रकाश लेता है",
-          "जड़ों से पानी (H₂O) लेता है",
-          "हवा से CO₂ (Carbon Dioxide) लेता है",
-          "Chlorophyll की मदद से Glucose बनाता है और O₂ छोड़ता है",
-        ],
-        example: "🌱 जैसे हम खाना पकाते हैं, पौधे सूरज की रोशनी से खाना पकाते हैं!",
-        tip: "💡 Formula: 6CO₂ + 6H₂O + Light → C₆H₁₂O₆ + 6O₂",
-      },
-      hinglish: {
-        explanation:
-          "Photosynthesis ek process hai jisme plants suraj ki roshni se apna khana banate hain. Leaves mein hara color Chlorophyll hota hai jo yeh kaam karta hai.",
-        steps: [
-          "Plant leaves se sunlight absorb karta hai",
-          "Roots se paani leta hai",
-          "Hawa se CO₂ leta hai",
-          "In sab se glucose (sugar) banata hai aur oxygen release karta hai",
-        ],
-        example: "🌿 Seedha samjho: Plant = Chef, Sunlight = Gas, CO₂+Water = Ingredients, Glucose = Khana!",
-        tip: "💡 Isliye hare patte important hain – ye humein oxygen dete hain!",
-      },
-      english: {
-        explanation:
-          "Photosynthesis is how plants make their own food using sunlight. The green color in leaves (Chlorophyll) helps capture sunlight energy.",
-        steps: [
-          "Leaves capture sunlight",
-          "Roots absorb water (H₂O)",
-          "Leaves take in CO₂ from air",
-          "Using light energy → make glucose + release oxygen",
-        ],
-        example: "🌱 Think of leaves as solar-powered kitchens making food from sunlight!",
-        tip: "💡 Simple formula: Sun + Water + CO₂ → Food + Oxygen",
-      },
-    },
-  };
-
-  // Detect topic
-  const topic = q.includes("fraction") || q.includes("भिन्न") || q.includes("भिन्")
-    ? "fraction"
-    : q.includes("photo") || q.includes("प्रकाश") || q.includes("plant")
-    ? "photosynthesis"
-    : null;
-
-  if (topic && responses[topic]) {
-    return responses[topic][language];
-  }
-
-  // Generic response
-  const generic: Record<Language, AIResponse> = {
-    hindi: {
-      explanation: `"${question}" के बारे में – यह एक अच्छा सवाल है! आइए इसे आसान तरीके से समझते हैं। इस topic को step-by-step समझने की कोशिश करें।`,
-      steps: ["पहले basic concept समझें", "फिर example देखें", "Practice करें", "अगर doubt हो तो फिर पूछें"],
-      example: "🌟 Real life में देखो – हर चीज़ में Math और Science छुपी है!",
-      tip: "💡 हमेशा सवाल पूछो – यही सीखने का सबसे अच्छा तरीका है!",
-    },
-    hinglish: {
-      explanation: `"${question}" ke baare mein – bahut achha question hai! Chalte hain step by step samjhein. Pehle basic clear karein.`,
-      steps: ["Basic concept pehle", "Phir example dekho", "Practice karo", "Doubt ho toh poochho"],
-      example: "🌟 Real life mein dekho – sab mein Math aur Science chhupa hai!",
-      tip: "💡 Questions poochho – yehi sabse best tarika hai sikhne ka!",
-    },
-    english: {
-      explanation: `Great question about "${question}"! Let's break it down step by step in simple words. Understanding basics first makes everything easier.`,
-      steps: ["Start with the basic idea", "Look at a real example", "Try to solve", "Ask again if confused"],
-      example: "🌟 Look around you – Math and Science are everywhere in real life!",
-      tip: "💡 Always ask questions – that's the best way to learn!",
-    },
-  };
-
-  return generic[language];
-};
 
 const DoubtBox: React.FC<DoubtBoxProps> = ({ language, progress, onUpdateProgress }) => {
   const [question, setQuestion] = useState("");
@@ -154,26 +38,64 @@ const DoubtBox: React.FC<DoubtBoxProps> = ({ language, progress, onUpdateProgres
     setResponse(null);
     setSimplified(false);
 
-    // Simulate AI processing
-    await new Promise((r) => setTimeout(r, 1800));
-    const aiResp = getAIResponse(question || "general concept", language);
-    setResponse(aiResp);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase.functions.invoke("ask-doubt", {
+        body: { question: question.trim() || "Explain this image", language },
+      });
 
-    // Update progress
-    const topics = [...progress.topicsSearched];
-    if (question.trim() && !topics.includes(question.trim())) {
-      topics.push(question.trim());
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setResponse(data as AIResponse);
+
+      // Update progress
+      const topics = [...progress.topicsSearched];
+      if (question.trim() && !topics.includes(question.trim())) {
+        topics.push(question.trim());
+      }
+      onUpdateProgress({
+        topicsSearched: topics,
+        questionsAsked: progress.questionsAsked + 1,
+      });
+    } catch (err: any) {
+      console.error("AI error:", err);
+      toast.error(
+        language === "hindi"
+          ? "AI से जवाब नहीं मिला। फिर से कोशिश करें।"
+          : language === "hinglish"
+          ? "AI se jawab nahi mila. Phir se try karo."
+          : "Could not get AI response. Please try again."
+      );
+    } finally {
+      setLoading(false);
     }
-    onUpdateProgress({
-      topicsSearched: topics,
-      questionsAsked: progress.questionsAsked + 1,
-    });
   };
 
   const handleSimplify = async () => {
     if (!response) return;
-    setSimplified(true);
+    setLoading(true);
+    try {
+      const simplifyQ =
+        language === "hindi"
+          ? `इसे और सरल भाषा में समझाओ: ${response.explanation}`
+          : language === "hinglish"
+          ? `Isko aur simple mein samjhao: ${response.explanation}`
+          : `Explain this even more simply for a young child: ${response.explanation}`;
+
+      const { data, error } = await supabase.functions.invoke("ask-doubt", {
+        body: { question: simplifyQ, language },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setResponse(data as AIResponse);
+      setSimplified(true);
+    } catch {
+      toast.error("Could not simplify. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -258,7 +180,6 @@ const DoubtBox: React.FC<DoubtBoxProps> = ({ language, progress, onUpdateProgres
       {/* AI Response */}
       {response && !loading && (
         <div className="space-y-3 bounce-in">
-          {/* Main explanation */}
           <div className="card-fun border-l-4 border-l-primary">
             <div className="flex items-center gap-2 mb-3">
               <Lightbulb size={20} className="text-accent" />
@@ -266,21 +187,13 @@ const DoubtBox: React.FC<DoubtBoxProps> = ({ language, progress, onUpdateProgres
                 {language === "hindi" ? "समझाना:" : language === "hinglish" ? "Explanation:" : "Explanation:"}
               </h4>
             </div>
-            <p className="text-foreground font-medium text-sm leading-relaxed">
-              {simplified
-                ? (language === "hindi"
-                    ? "✨ सरल शब्दों में: " + response.explanation.split(" ").slice(0, 15).join(" ") + "..."
-                    : language === "hinglish"
-                    ? "✨ Aur simple mein: " + response.explanation.split(" ").slice(0, 15).join(" ") + "..."
-                    : "✨ Even simpler: " + response.explanation.split(" ").slice(0, 15).join(" ") + "...")
-                : response.explanation}
-            </p>
+            <p className="text-foreground font-medium text-sm leading-relaxed">{response.explanation}</p>
           </div>
 
           {/* Steps */}
           <div className="card-fun bg-info-light border border-info/20">
             <h4 className="font-baloo font-bold text-foreground mb-3">
-              {language === "hindi" ? "📋 Steps:" : language === "hinglish" ? "📋 Steps:" : "📋 Steps:"}
+              {language === "hindi" ? "📋 Steps:" : "📋 Steps:"}
             </h4>
             <ol className="space-y-2">
               {response.steps.map((step, i) => (
