@@ -4,6 +4,7 @@ import type { StudentProgress } from "../types/progress";
 
 interface ParentDashboardProps {
   mobile: string;
+  fullName:string;
   studentProgress: StudentProgress;
   studentMobile: string;
   onLogout: () => void;
@@ -11,6 +12,7 @@ interface ParentDashboardProps {
 
 const ParentDashboard: React.FC<ParentDashboardProps> = ({
   mobile,
+  fullName,
   studentProgress,
   studentMobile,
   onLogout,
@@ -44,7 +46,7 @@ const ParentDashboard: React.FC<ParentDashboardProps> = ({
               <p className="font-baloo font-bold text-foreground text-sm leading-tight">
                 Parent Dashboard
               </p>
-              <p className="text-xs text-muted-foreground font-medium">+91 {mobile} • Parent</p>
+              <p className="text-xs text-muted-foreground font-medium"> {fullName} • Parent</p>
             </div>
           </div>
           <button
