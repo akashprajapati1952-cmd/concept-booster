@@ -131,22 +131,7 @@ const DoubtBox: React.FC<DoubtBoxProps> = ({ language, progress, onUpdateProgres
             className="hidden"
             onChange={(e) => setImageFile(e.target.files?.[0] || null)}
           />
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl border-2 border-dashed border-border text-muted-foreground font-semibold text-sm hover:border-primary hover:text-primary transition-all touch-btn"
-          >
-            <ImagePlus size={16} />
-            {imageFile ? (
-              <span className="text-success">✓ {imageFile.name.slice(0, 20)}</span>
-            ) : (
-              language === "hindi" ? "फ़ोटो अपलोड करें" : language === "hinglish" ? "Photo Upload Karo" : "Upload Image"
-            )}
-          </button>
-          {imageFile && (
-            <button onClick={() => setImageFile(null)} className="text-xs text-destructive font-semibold">
-              Remove
-            </button>
-          )}
+          
         </div>
 
         <button
