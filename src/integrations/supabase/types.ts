@@ -14,7 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      students: {
+        Row: {
+          correct_answers: number | null
+          created_at: string
+          dob: string
+          full_name: string
+          id: string
+          mastery_level: number | null
+          mobile: string
+          questions_asked: number | null
+          topics_searched: string[] | null
+          updated_at: string
+          weak_topics: string[] | null
+          wrong_answers: number | null
+        }
+        Insert: {
+          correct_answers?: number | null
+          created_at?: string
+          dob: string
+          full_name: string
+          id?: string
+          mastery_level?: number | null
+          mobile: string
+          questions_asked?: number | null
+          topics_searched?: string[] | null
+          updated_at?: string
+          weak_topics?: string[] | null
+          wrong_answers?: number | null
+        }
+        Update: {
+          correct_answers?: number | null
+          created_at?: string
+          dob?: string
+          full_name?: string
+          id?: string
+          mastery_level?: number | null
+          mobile?: string
+          questions_asked?: number | null
+          topics_searched?: string[] | null
+          updated_at?: string
+          weak_topics?: string[] | null
+          wrong_answers?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
