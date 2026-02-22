@@ -76,7 +76,7 @@ const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => {
               <p className="font-bold text-foreground text-sm">Hobbies & Dreams</p>
             </div>
             <p className="text-foreground/80 text-sm font-medium">
-              Coding, 3D printing aur nayi technology seekhna. Mera sapna hai ki main apni pehli salary se puri duniya ghoomu.
+              Coding, 3D printing aur nayi technology seekhna.
             </p>
           </div>
 
