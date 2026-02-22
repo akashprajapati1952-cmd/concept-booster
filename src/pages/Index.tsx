@@ -166,6 +166,7 @@ const Index = () => {
 
       {screen === "studentDashboard" && studentData && (
         <StudentDashboard
+          fullName={studentData.fullName}
           mobile={studentData.mobile}
           progress={progress}
           onUpdateProgress={handleUpdateProgress}
@@ -175,6 +176,7 @@ const Index = () => {
 
       {screen === "parentDashboard" && studentData && (
         <ParentDashboard
+          fullName={studentData.fullName}
           mobile={studentData.mobile}
           studentProgress={progress}
           studentMobile={studentData.mobile}
