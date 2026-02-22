@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { BookOpen, Loader2, ChevronRight } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import type { Language } from "./LanguageSelector";
 import type { StudentProgress } from "../types/progress";
 
@@ -7,6 +9,13 @@ interface LearnTopicProps {
   language: Language;
   progress: StudentProgress;
   onUpdateProgress: (update: Partial<StudentProgress>) => void;
+}
+
+interface TopicContent {
+  definition: string;
+  steps: string[];
+  mistakes: string[];
+  practice: { q: string; a: string }[];
 }
 
 const popularTopics = [
@@ -18,78 +27,10 @@ const popularTopics = [
   { emoji: "🧪", label: "Acids & Bases", hindi: "अम्ल और क्षार" },
 ];
 
-const getTopicContent = (topic: string, language: Language) => {
-  const content: Record<Language, {
-    definition: string;
-    steps: string[];
-    mistakes: string[];
-    practice: { q: string; a: string }[];
-  }> = {
-    hindi: {
-      definition: `${topic} एक महत्वपूर्ण concept है। आइए इसे बिल्कुल शुरू से समझते हैं। यह हमारी रोज़ की ज़िंदगी में बहुत काम आता है।`,
-      steps: [
-        "पहले definition समझो",
-        "फिर example देखो",
-        "छोटे-छोटे parts में बाँटो",
-        "Practice problems solve करो",
-      ],
-      mistakes: [
-        "Steps skip मत करो",
-        "Formula रटने की बजाय समझो",
-        "Practice ज़रूर करो",
-      ],
-      practice: [
-        { q: `${topic} का सबसे आसान example क्या है?`, a: "रोज़ की ज़िंदगी में देखो!" },
-        { q: `${topic} कहाँ use होता है?`, a: "हर जगह – घर में, बाजार में, प्रकृति में!" },
-        { q: `${topic} को कैसे याद रखें?`, a: "story बनाओ और real life से जोड़ो!" },
-      ],
-    },
-    hinglish: {
-      definition: `${topic} ek important concept hai. Chalte hain bilkul start se samjhein. Yeh hamari daily life mein bahut kaam aata hai.`,
-      steps: [
-        "Pehle definition samjho",
-        "Phir example dekho",
-        "Chote parts mein todo",
-        "Practice problems karo",
-      ],
-      mistakes: [
-        "Steps kabhi skip mat karo",
-        "Formula ratne ki jagah samjho",
-        "Daily practice karo",
-      ],
-      practice: [
-        { q: `${topic} ka sabse easy example kya hai?`, a: "Daily life mein dekho!" },
-        { q: `${topic} kahan use hota hai?`, a: "Har jagah – ghar mein, market mein, nature mein!" },
-        { q: `${topic} yaad kaise rakhein?`, a: "Story banao aur real life se jodo!" },
-      ],
-    },
-    english: {
-      definition: `${topic} is an important concept. Let's understand it from the very beginning. It is useful in our daily life too!`,
-      steps: [
-        "First understand the definition",
-        "Then see a real example",
-        "Break it into smaller parts",
-        "Solve practice problems",
-      ],
-      mistakes: [
-        "Never skip steps",
-        "Understand formulas, don't just memorize",
-        "Practice every day",
-      ],
-      practice: [
-        { q: `What is the simplest example of ${topic}?`, a: "Look in your daily life!" },
-        { q: `Where is ${topic} used in real life?`, a: "Everywhere – home, market, nature!" },
-        { q: `How to remember ${topic}?`, a: "Make a story and connect to real life!" },
-      ],
-    },
-  };
-  return content[language];
-};
-
 const LearnTopic: React.FC<LearnTopicProps> = ({ language, progress, onUpdateProgress }) => {
   const [topic, setTopic] = useState("");
   const [loading, setLoading] = useState(false);
-  const [content, setContent] = useState<ReturnType<typeof getTopicContent> | null>(null);
+  const [content, setContent] = useState<TopicContent | null>(null);
   const [currentTopic, setCurrentTopic] = useState("");
 
   const handleLearn = async (t?: string) => {
@@ -99,13 +40,29 @@ const LearnTopic: React.FC<LearnTopicProps> = ({ language, progress, onUpdatePro
     setContent(null);
     setCurrentTopic(topicToLearn);
 
-    await new Promise((r) => setTimeout(r, 1600));
-    setContent(getTopicContent(topicToLearn, language));
-    setLoading(false);
+    try {
+      const { data, error } = await supabase.functions.invoke("learn-topic", {
+        body: { topic: topicToLearn, language },
+      });
 
-    const topics = [...progress.topicsSearched];
-    if (!topics.includes(topicToLearn)) topics.push(topicToLearn);
-    onUpdateProgress({ topicsSearched: topics });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setContent(data as TopicContent);
+
+      const topics = [...progress.topicsSearched];
+      if (!topics.includes(topicToLearn)) topics.push(topicToLearn);
+      onUpdateProgress({ topicsSearched: topics });
+    } catch (err: any) {
+      console.error("Learn topic error:", err);
+      toast.error(
+        language === "hindi" ? "Topic load नहीं हो पाया। फिर से try करें।"
+          : language === "hinglish" ? "Topic load nahi ho paya. Phir se try karo."
+          : "Could not load topic. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -119,7 +76,7 @@ const LearnTopic: React.FC<LearnTopicProps> = ({ language, progress, onUpdatePro
               {language === "hindi" ? "Topic सीखो!" : language === "hinglish" ? "Topic Seekho!" : "Learn a Topic!"}
             </h3>
             <p className="text-xs text-muted-foreground font-medium">
-              {language === "hindi" ? "कोई भी topic enter करो" : language === "hinglish" ? "Koi bhi topic likhein" : "Enter any topic to start"}
+              {language === "hindi" ? "कोई भी topic enter करो, AI सिखाएगा" : language === "hinglish" ? "Koi bhi topic likhein, AI sikhayega" : "Enter any topic, AI will teach you"}
             </p>
           </div>
         </div>
@@ -146,7 +103,7 @@ const LearnTopic: React.FC<LearnTopicProps> = ({ language, progress, onUpdatePro
       {!content && !loading && (
         <div className="slide-up">
           <p className="text-sm font-bold text-muted-foreground mb-3 px-1">
-            {language === "hindi" ? "🔥 Popular Topics:" : language === "hinglish" ? "🔥 Popular Topics:" : "🔥 Popular Topics:"}
+            🔥 Popular Topics:
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {popularTopics.map((t) => (
@@ -183,15 +140,11 @@ const LearnTopic: React.FC<LearnTopicProps> = ({ language, progress, onUpdatePro
             <h3 className="font-baloo font-bold text-foreground text-lg">{currentTopic}</h3>
           </div>
 
-          {/* Definition */}
           <div className="card-fun border-l-4 border-l-primary">
-            <h4 className="font-bold text-foreground mb-2 text-sm">
-              {language === "hindi" ? "📚 Definition:" : "📚 Definition:"}
-            </h4>
+            <h4 className="font-bold text-foreground mb-2 text-sm">📚 Definition:</h4>
             <p className="text-foreground text-sm font-medium leading-relaxed">{content.definition}</p>
           </div>
 
-          {/* Steps */}
           <div className="card-fun bg-info-light border border-info/20">
             <h4 className="font-bold text-foreground mb-3 text-sm">
               {language === "hindi" ? "📋 Steps to Learn:" : language === "hinglish" ? "📋 Seekhne ke Steps:" : "📋 Steps to Learn:"}
@@ -211,7 +164,6 @@ const LearnTopic: React.FC<LearnTopicProps> = ({ language, progress, onUpdatePro
             </ol>
           </div>
 
-          {/* Common Mistakes */}
           <div className="card-fun bg-destructive/10 border border-destructive/20">
             <h4 className="font-bold text-foreground mb-2 text-sm">⚠️ Common Mistakes:</h4>
             <ul className="space-y-1">
@@ -223,7 +175,6 @@ const LearnTopic: React.FC<LearnTopicProps> = ({ language, progress, onUpdatePro
             </ul>
           </div>
 
-          {/* Practice Questions */}
           <div className="card-fun">
             <h4 className="font-bold text-foreground mb-3 text-sm">
               ✏️ {language === "hindi" ? "Practice Questions:" : "Practice Questions:"}
@@ -248,22 +199,14 @@ const LearnTopic: React.FC<LearnTopicProps> = ({ language, progress, onUpdatePro
 };
 
 const PracticeQuestion = ({
-  index,
-  question,
-  answer,
-  language,
+  index, question, answer, language,
 }: {
-  index: number;
-  question: string;
-  answer: string;
-  language: Language;
+  index: number; question: string; answer: string; language: Language;
 }) => {
   const [revealed, setRevealed] = useState(false);
   return (
     <div className="bg-card rounded-2xl p-3 border border-border">
-      <p className="font-semibold text-foreground text-sm mb-2">
-        Q{index}. {question}
-      </p>
+      <p className="font-semibold text-foreground text-sm mb-2">Q{index}. {question}</p>
       {revealed ? (
         <p className="text-success font-bold text-sm">✅ {answer}</p>
       ) : (
