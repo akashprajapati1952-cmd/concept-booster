@@ -9,6 +9,7 @@ import type { StudentProgress } from "../types/progress";
 
 interface StudentDashboardProps {
   mobile: string;
+  fullName: string;
   progress: StudentProgress;
   onUpdateProgress: (update: Partial<StudentProgress>) => void;
   onLogout: () => void;
@@ -18,6 +19,7 @@ type Tab = "doubt" | "learn" | "practice" | "progress";
 
 const StudentDashboard: React.FC<StudentDashboardProps> = ({
   mobile,
+  fullName,
   progress,
   onUpdateProgress,
   onLogout,
@@ -43,7 +45,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({
               <p className="font-baloo font-bold text-foreground text-sm leading-tight">
                 Concept Booster AI
               </p>
-              <p className="text-xs text-muted-foreground font-medium">+91 {mobile} • Student 🎒</p>
+              <p className="text-xs text-muted-foreground font-medium">{fullName} • Student 🎒</p>
             </div>
           </div>
           <button
