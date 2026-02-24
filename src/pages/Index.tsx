@@ -50,7 +50,12 @@ const Index = () => {
 
   // Check for Google OAuth session on mount
   useEffect(() => {
+    let handled = false;
+
     const handleGoogleUser = async (userId: string, metadata: any) => {
+      if (handled) return;
+      handled = true;
+
       const savedRole = localStorage.getItem("pending_google_role") as "student" | "parent" | null;
       localStorage.removeItem("pending_google_role");
       const effectiveRole = savedRole || "student";
