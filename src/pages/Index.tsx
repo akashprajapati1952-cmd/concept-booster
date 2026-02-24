@@ -48,18 +48,9 @@ const Index = () => {
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState("");
 
-  // Check for Google OAuth session on mount
+  // Handle Google OAuth redirect
   useEffect(() => {
-    let handled = false;
-
-    const handleGoogleUser = async (userId: string, metadata: any) => {
-      if (handled) return;
-      handled = true;
-
-      const savedRole = localStorage.getItem("pending_google_role") as "student" | "parent" | null;
-      localStorage.removeItem("pending_google_role");
-      const effectiveRole = savedRole || "student";
-
+    const handleGoogleUser = async (userId: string, metadata: any, savedRole: "student" | "parent") => {
       const name = metadata?.full_name || metadata?.name || "Google User";
       const mobileKey = `google_${userId.slice(0, 8)}`;
 
@@ -72,7 +63,7 @@ const Index = () => {
       let student: StudentRow | null = rows && rows.length > 0 ? rows[0] : null;
 
       if (!student) {
-        if (effectiveRole === "parent") {
+        if (savedRole === "parent") {
           setLoginError("No student found with this Google account. पहले student के रूप में register करें।");
           setRole("parent");
           setScreen("login");
@@ -89,21 +80,33 @@ const Index = () => {
       if (student) {
         setStudentData({ id: student.id, fullName: student.full_name, dob: student.dob, mobile: student.mobile });
         setProgress(rowToProgress(student));
-        setRole(effectiveRole);
-        setScreen(effectiveRole === "parent" ? "parentDashboard" : "studentDashboard");
+        setRole(savedRole);
+        setScreen(savedRole === "parent" ? "parentDashboard" : "studentDashboard");
       }
     };
 
+    // Only process if user just returned from Google OAuth
+    const pendingRole = localStorage.getItem("pending_google_role") as "student" | "parent" | null;
+    if (!pendingRole) return;
+
+    let handled = false;
+
+    const processSession = (userId: string, metadata: any) => {
+      if (handled) return;
+      handled = true;
+      localStorage.removeItem("pending_google_role");
+      handleGoogleUser(userId, metadata, pendingRole);
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session?.user) {
-        handleGoogleUser(session.user.id, session.user.user_metadata);
+      if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user) {
+        processSession(session.user.id, session.user.user_metadata);
       }
     });
 
-    // Check existing session on mount
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        handleGoogleUser(session.user.id, session.user.user_metadata);
+        processSession(session.user.id, session.user.user_metadata);
       }
     });
 
