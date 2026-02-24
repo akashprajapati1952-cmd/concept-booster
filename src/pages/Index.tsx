@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import RoleSelect from "../components/RoleSelect";
 import LoginScreen from "../components/LoginScreen";
 import StudentDashboard from "../components/StudentDashboard";
@@ -47,6 +47,52 @@ const Index = () => {
   const [showAbout, setShowAbout] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState("");
+
+  // Check for Google OAuth session on mount
+  useEffect(() => {
+    const checkAuthSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const user = session.user;
+        const name = user.user_metadata?.full_name || user.user_metadata?.name || user.email || "Google User";
+        
+        // Find or create student record for Google user
+        const { data: rows } = await (supabase as any)
+          .from("students")
+          .select("*")
+          .eq("mobile", `google_${user.id.slice(0, 8)}`)
+          .ilike("full_name", name.toLowerCase());
+
+        let student: StudentRow | null = rows && rows.length > 0 ? rows[0] : null;
+
+        if (!student) {
+          const { data: inserted } = await (supabase as any)
+            .from("students")
+            .insert({ full_name: name, dob: "2000-01-01", mobile: `google_${user.id.slice(0, 8)}` })
+            .select()
+            .single();
+          student = inserted;
+        }
+
+        if (student) {
+          setStudentData({ id: student.id, fullName: student.full_name, dob: student.dob, mobile: student.mobile });
+          setProgress(rowToProgress(student));
+          setRole("student");
+          setScreen("studentDashboard");
+        }
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN") {
+        checkAuthSession();
+      }
+    });
+
+    checkAuthSession();
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleRoleSelect = (selectedRole: "student" | "parent") => {
     setRole(selectedRole);
