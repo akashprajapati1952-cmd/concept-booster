@@ -162,12 +162,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ role, onLogin, onBack, loadin
               : "अपने बच्चे की details डालकर progress देखें"}
           </p>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-2">
-            <div className="flex-1 h-px bg-border" />
-            <span className="text-xs text-muted-foreground font-semibold">OR</span>
-            <div className="flex-1 h-px bg-border" />
-          </div>
+          
 
           
         </div>
