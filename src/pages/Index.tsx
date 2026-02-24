@@ -50,46 +50,57 @@ const Index = () => {
 
   // Check for Google OAuth session on mount
   useEffect(() => {
-    const checkAuthSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const user = session.user;
-        const name = user.user_metadata?.full_name || user.user_metadata?.name || user.email || "Google User";
-        
-        // Find or create student record for Google user
-        const { data: rows } = await (supabase as any)
+    const handleGoogleUser = async (userId: string, metadata: any) => {
+      const savedRole = localStorage.getItem("pending_google_role") as "student" | "parent" | null;
+      localStorage.removeItem("pending_google_role");
+      const effectiveRole = savedRole || "student";
+
+      const name = metadata?.full_name || metadata?.name || "Google User";
+      const mobileKey = `google_${userId.slice(0, 8)}`;
+
+      const { data: rows } = await (supabase as any)
+        .from("students")
+        .select("*")
+        .eq("mobile", mobileKey)
+        .ilike("full_name", name.toLowerCase());
+
+      let student: StudentRow | null = rows && rows.length > 0 ? rows[0] : null;
+
+      if (!student) {
+        if (effectiveRole === "parent") {
+          setLoginError("No student found with this Google account. पहले student के रूप में register करें।");
+          setRole("parent");
+          setScreen("login");
+          return;
+        }
+        const { data: inserted } = await (supabase as any)
           .from("students")
-          .select("*")
-          .eq("mobile", `google_${user.id.slice(0, 8)}`)
-          .ilike("full_name", name.toLowerCase());
+          .insert({ full_name: name, dob: "2000-01-01", mobile: mobileKey })
+          .select()
+          .single();
+        student = inserted;
+      }
 
-        let student: StudentRow | null = rows && rows.length > 0 ? rows[0] : null;
-
-        if (!student) {
-          const { data: inserted } = await (supabase as any)
-            .from("students")
-            .insert({ full_name: name, dob: "2000-01-01", mobile: `google_${user.id.slice(0, 8)}` })
-            .select()
-            .single();
-          student = inserted;
-        }
-
-        if (student) {
-          setStudentData({ id: student.id, fullName: student.full_name, dob: student.dob, mobile: student.mobile });
-          setProgress(rowToProgress(student));
-          setRole("student");
-          setScreen("studentDashboard");
-        }
+      if (student) {
+        setStudentData({ id: student.id, fullName: student.full_name, dob: student.dob, mobile: student.mobile });
+        setProgress(rowToProgress(student));
+        setRole(effectiveRole);
+        setScreen(effectiveRole === "parent" ? "parentDashboard" : "studentDashboard");
       }
     };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN") {
-        checkAuthSession();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session?.user) {
+        handleGoogleUser(session.user.id, session.user.user_metadata);
       }
     });
 
-    checkAuthSession();
+    // Check existing session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        handleGoogleUser(session.user.id, session.user.user_metadata);
+      }
+    });
 
     return () => subscription.unsubscribe();
   }, []);
