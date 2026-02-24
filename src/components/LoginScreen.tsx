@@ -173,6 +173,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ role, onLogin, onBack, loadin
           <button
             onClick={async () => {
               setGoogleLoading(true);
+              localStorage.setItem("pending_google_role", role);
               const { error } = await lovable.auth.signInWithOAuth("google", {
                 redirect_uri: window.location.origin,
               });
