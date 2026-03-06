@@ -56,8 +56,11 @@ const saveLocalStudents = (students: StudentRow[]) => {
 };
 
 const isNetworkFetchError = (err: unknown) => {
-  const message = err instanceof Error ? err.message : String(err);
-  return message.includes("Failed to fetch");
+  if (err instanceof Error) return err.message.includes("Failed to fetch");
+  if (typeof err === "object" && err !== null && "message" in err) {
+    return String((err as any).message).includes("Failed to fetch");
+  }
+  return String(err).includes("Failed to fetch");
 };
 
 const Index = () => {
