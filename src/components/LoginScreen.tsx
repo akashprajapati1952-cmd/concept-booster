@@ -1,7 +1,5 @@
 import React, { useState } from "react";
 import { ArrowLeft, User, Calendar, Phone, RefreshCw } from "lucide-react";
-import { lovable } from "@/integrations/lovable/index";
-import { useToast } from "@/hooks/use-toast";
 
 interface LoginScreenProps {
   role: "student" | "parent";
@@ -16,8 +14,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ role, onLogin, onBack, loadin
   const [dob, setDob] = useState("");
   const [mobile, setMobile] = useState("");
   const [error, setError] = useState("");
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const { toast } = useToast();
 
   const isStudent = role === "student";
   const gradientStyle = isStudent ? "var(--gradient-hero)" : "var(--gradient-teal)";
@@ -161,10 +157,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ role, onLogin, onBack, loadin
               ? "Name + DOB + Mobile = आपकी unique पहचान"
               : "अपने बच्चे की details डालकर progress देखें"}
           </p>
-
-          
-
-          
         </div>
       </div>
     </div>
