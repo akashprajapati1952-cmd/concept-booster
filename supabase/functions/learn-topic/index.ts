@@ -17,11 +17,12 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const langInstruction = {
+    const langMap: Record<string, string> = {
       hindi: "Respond entirely in Hindi (Devanagari script). Use simple language for school students.",
       hinglish: "Respond in Hinglish (Hindi in Roman script mixed with English). Keep it casual and student-friendly.",
       english: "Respond in simple English suitable for school students.",
-    }[language] || "Respond in simple English suitable for school students.";
+    };
+    const langInstruction = langMap[language as string] || "Respond in simple English suitable for school students.";
 
     const systemPrompt = `You are an expert teacher for Indian school students (classes 5-10). ${langInstruction}
 
