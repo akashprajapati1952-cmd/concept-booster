@@ -39,6 +39,27 @@ const rowToProgress = (row: StudentRow): StudentProgress => ({
   masteryLevel: row.mastery_level || 0,
 });
 
+const LOCAL_STUDENTS_KEY = "offline_students";
+
+const getLocalStudents = (): StudentRow[] => {
+  try {
+    const raw = localStorage.getItem(LOCAL_STUDENTS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveLocalStudents = (students: StudentRow[]) => {
+  localStorage.setItem(LOCAL_STUDENTS_KEY, JSON.stringify(students));
+};
+
+const isNetworkFetchError = (err: unknown) => {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.includes("Failed to fetch");
+};
+
 const Index = () => {
   const [screen, setScreen] = useState<Screen>("roleSelect");
   const [role, setRole] = useState<"student" | "parent" | null>(null);
@@ -125,26 +146,58 @@ const Index = () => {
 
     try {
       const normalizedName = data.fullName.trim().toLowerCase();
+      let existing: StudentRow | null = null;
+      let offlineMode = false;
 
-      // Use type assertion for newly created table not yet in generated types
-      const { data: rows, error: fetchErr } = await (supabase as any)
-        .from("students")
-        .select("*")
-        .eq("mobile", data.mobile)
-        .eq("dob", data.dob)
-        .ilike("full_name", normalizedName);
+      try {
+        const { data: rows, error: fetchErr } = await (supabase as any)
+          .from("students")
+          .select("*")
+          .eq("mobile", data.mobile)
+          .eq("dob", data.dob)
+          .ilike("full_name", normalizedName);
 
-      if (fetchErr) throw fetchErr;
-
-      const existing: StudentRow | null = rows && rows.length > 0 ? rows[0] : null;
+        if (fetchErr) throw fetchErr;
+        existing = rows && rows.length > 0 ? rows[0] : null;
+      } catch (fetchError) {
+        if (!isNetworkFetchError(fetchError)) throw fetchError;
+        offlineMode = true;
+        const localStudents = getLocalStudents();
+        existing =
+          localStudents.find(
+            (s) =>
+              s.mobile === data.mobile &&
+              s.dob === data.dob &&
+              s.full_name.trim().toLowerCase() === normalizedName
+          ) || null;
+      }
 
       if (role === "student") {
         if (existing) {
           setStudentData({ id: existing.id, fullName: existing.full_name, dob: existing.dob, mobile: existing.mobile });
           setProgress(rowToProgress(existing));
           setScreen("studentDashboard");
+        } else if (offlineMode) {
+          const inserted: StudentRow = {
+            id: crypto.randomUUID(),
+            full_name: data.fullName.trim(),
+            dob: data.dob,
+            mobile: data.mobile,
+            topics_searched: [],
+            questions_asked: 0,
+            correct_answers: 0,
+            wrong_answers: 0,
+            weak_topics: [],
+            mastery_level: 0,
+          };
+          const localStudents = getLocalStudents();
+          localStudents.push(inserted);
+          saveLocalStudents(localStudents);
+
+          setStudentData({ id: inserted.id, fullName: inserted.full_name, dob: inserted.dob, mobile: inserted.mobile });
+          setProgress(defaultProgress);
+          setScreen("studentDashboard");
         } else {
-          // Register new student
           const { data: inserted, error: insertErr } = await (supabase as any)
             .from("students")
             .insert({ full_name: data.fullName.trim(), dob: data.dob, mobile: data.mobile })
@@ -158,7 +211,6 @@ const Index = () => {
           setScreen("studentDashboard");
         }
       } else {
-        // Parent: must find existing student
         if (!existing) {
           setLoginError("No student found with these details. कृपया सही details डालें।");
           setLoginLoading(false);
@@ -171,7 +223,7 @@ const Index = () => {
       }
     } catch (err: any) {
       console.error("Login error:", err);
-      setLoginError("Something went wrong. Please try again.");
+      setLoginError("Network issue ya server error. Please try again.");
     } finally {
       setLoginLoading(false);
     }
@@ -187,6 +239,21 @@ const Index = () => {
       const final = { ...updated, masteryLevel };
 
       if (studentData?.id) {
+        const localStudents = getLocalStudents();
+        const idx = localStudents.findIndex((s) => s.id === studentData.id);
+        if (idx >= 0) {
+          localStudents[idx] = {
+            ...localStudents[idx],
+            topics_searched: final.topicsSearched,
+            questions_asked: final.questionsAsked,
+            correct_answers: final.correctAnswers,
+            wrong_answers: final.wrongAnswers,
+            weak_topics: final.weakTopics,
+            mastery_level: final.masteryLevel,
+          };
+          saveLocalStudents(localStudents);
+        }
+
         (supabase as any)
           .from("students")
           .update({
@@ -199,7 +266,9 @@ const Index = () => {
           })
           .eq("id", studentData.id)
           .then(({ error }: any) => {
-            if (error) console.error("Failed to save progress:", error);
+            if (error && !String(error?.message || "").includes("Failed to fetch")) {
+              console.error("Failed to save progress:", error);
+            }
           });
       }
 
